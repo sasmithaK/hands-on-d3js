@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git Branch Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: white;
+        }
+        
+        .node circle {
+            stroke: #000;
+            stroke-width: 2px;
+        }
+        
+        .connection {
+            fill: none;
+            stroke: #000;
+            stroke-width: 2px;
+        }
+        
+        .label {
+            padding: 4px 8px;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        
+        .master {
+            background-color: #0AB;
+        }
+        
+        .develop {
+            background-color: #F90;
+        }
+        
+        .feature {
+            background-color: #5B5;
+        }
+        
+        .hotfix {
+            background-color: #E36;
+        }
+        
+        .version {
+            background-color: #0AB;
+        }
+        
+        .dashed-line {
+            stroke: #999;
+            stroke-width: 1px;
+            stroke-dasharray: 5, 5;
+        }
+    </style>
+</head>
+<body>
+    <svg id="git-graph" width="900" height="500"></svg>
+
+    <script>
+        // Data structure representing the git branches and connections
+        const data = {
+            nodes: [
+                { id: 1, x: 150, y: 125, color: "#0AB", label: "MASTER" },
+                { id: 2, x: 400, y: 125, color: "#0AB", label: "v0.5" },
+                { id: 3, x: 650, y: 125, color: "#0AB", label: "v1" },
+                { id: 4, x: 775, y: 125, color: "#0AB", label: "v1" },
+                { id: 5, x: 285, y: 325, color: "#F90", label: "DEVELOP" },
+                { id: 6, x: 400, y: 325, color: "#F90", label: "DEVELOP" },
+                { id: 7, x: 685, y: 325, color: "#F90", label: "v1.0" },
+                { id: 8, x: 775, y: 325, color: "#F90", label: "DEVELOP" },
+                { id: 9, x: 280, y: 225, color: "#E36", label: "Hotfix" },
+                { id: 10, x: 500, y: 425, color: "#5B5", label: "FEATURE" },
+                { id: 11, x: 580, y: 425, color: "#5B5", label: "FEATURE" }
+            ],
+            connections: [
+                { source: 1, target: 2, type: "straight" },
+                { source: 2, target: 3, type: "straight" },
+                { source: 3, target: 4, type: "straight" },
+                { source: 1, target: 5, type: "curved" },
+                { source: 5, target: 6, type: "straight" },
+                { source: 6, target: 7, type: "straight" },
+                { source: 7, target: 8, type: "straight" },
+                { source: 8, target: 4, type: "straight" },
+                { source: 1, target: 9, type: "curved" },
+                { source: 9, target: 2, type: "curved" },
+                { source: 6, target: 10, type: "curved" },
+                { source: 10, target: 11, type: "straight" },
+                { source: 11, target: 7, type: "curved" }
+            ],
+            dashedLines: [
+                { y: 125 },
+                { y: 225 },
+                { y: 325 },
+                { y: 425 }
+            ]
+        };
+
+        // Set up the SVG
+        const svg = d3.select("#git-graph");
+        const width = 900;
+        const height = 800;
+
+        // Draw dashed horizontal lines
+        data.dashedLines.forEach(line => {
+            svg.append("line")
+                .attr("x1", 0)
+                .attr("y1", line.y)
+                .attr("x2", width)
+                .attr("y2", line.y)
+                .attr("class", "dashed-line");
+        });
+
+        // Helper function to create curved paths
+        function createPath(source, target, type) {
+            if (type === "straight") {
+                return `M${source.x},${source.y} L${target.x},${target.y}`;
+            } else {
+                // Curved path
+                const midX = (source.x + target.x) / 2;
+                if (Math.abs(source.y - target.y) > 75) {
+                    return `M${source.x},${source.y} C${source.x + 100},${source.y} ${target.x - 100},${target.y} ${target.x},${target.y}`;
+                } else {
+                    return `M${source.x},${source.y} Q${midX},${Math.max(source.y, target.y) + 50} ${target.x},${target.y}`;
+                }
+            }
+        }
+
+        // Draw connections
+        data.connections.forEach(conn => {
+            const source = data.nodes.find(n => n.id === conn.source);
+            const target = data.nodes.find(n => n.id === conn.target);
+            
+            svg.append("path")
+                .attr("d", createPath(source, target, conn.type))
+                .attr("class", "connection");
+        });
+
+        // Draw nodes
+        const nodes = svg.selectAll(".node")
+            .data(data.nodes)
+            .enter()
+            .append("g")
+            .attr("class", "node")
+            .attr("transform", d => `translate(${d.x}, ${d.y})`);
+
+        // Add circles for nodes
+        nodes.append("circle")
+            .attr("r", 15)
+            .attr("fill", d => d.color);
+
+        // Add labels above specific nodes
+        svg.selectAll(".label-container")
+            .data(data.nodes.filter(n => n.label))
+            .enter()
+            .append("foreignObject")
+            .attr("x", d => {
+                // Center the label
+                if (d.label === "MASTER") return d.x - 40;
+                if (d.label === "DEVELOP") return d.x - 45;
+                if (d.label === "Hotfix") return d.x - 30;
+                if (d.label === "FEATURE") return d.x - 40;
+                if (d.label === "v0.5") return d.x - 25;
+                if (d.label === "v1") return d.x - 15;
+                if (d.label === "v1.0") return d.x - 25;
+                return d.x - 30;
+            })
+            .attr("y", d => d.y - 50)
+            .attr("width", d => {
+                if (d.label === "MASTER") return 80;
+                if (d.label === "DEVELOP") return 90;
+                if (d.label === "Hotfix") return 60;
+                if (d.label === "FEATURE") return 80;
+                if (d.label === "v0.5") return 50;
+                if (d.label === "v1") return 30;
+                if (d.label === "v1.0") return 50;
+                return 60;
+            })
+            .attr("height", 30)
+            .append("xhtml:div")
+            .attr("class", d => {
+                if (d.label === "MASTER" || d.label === "v0.5" || d.label === "v1") return "label master";
+                if (d.label === "DEVELOP" || d.label === "v1.0") return "label develop";
+                if (d.label === "FEATURE") return "label feature";
+                if (d.label === "Hotfix") return "label hotfix";
+                return "label";
+            })
+            .style("text-align", "center")
+            .style("display", "flex")
+            .style("justify-content", "center")
+            .style("align-items", "center")
+            .text(d => d.label);
+    </script>
+</body>
+</html>
